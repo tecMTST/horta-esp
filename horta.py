@@ -1,9 +1,8 @@
-from machine import UART, Pin, ADC
+from machine import UART, Pin, ADC, I2C
 import utime
 from SIM800L import Modem
 import json
-from DHT22 import DHT22
-
+import ahtx0
 
 Chave_API = 'GB30A3E1OFJ3SL8O'
 UMIDADE_SOLO_1 = 'field1'
@@ -69,8 +68,9 @@ def conexao_provedor(): #verifica se está conectado à rede do provedor, se nã
         print('Rede conectada: "{}"\n'.format(conectado))
         utime.sleep_ms(1000)
 
-def inic_sensores_umsolo():
+def inic_sensores(): #inicializa todos os sensores da horta
     global va_min_1,va_min_2,va_min_3,va_max_1,va_max_2,va_max_3,s_umsolo_1,s_umsolo_2,s_umsolo_3
+    global s_umtempar
     va_min_1 = 7900 #umidade 100%
     va_max_1 = 15000 #umidade 0%
     s_umsolo_1 = ADC(0)
@@ -83,52 +83,50 @@ def inic_sensores_umsolo():
     va_max_3 = 15000 #umidade 0%
     s_umsolo_3 = ADC(2)
     utime.sleep(1)
+    s_umtempar = ahtx0.AHT10(I2C(0,scl=Pin(5), sda=Pin(4))) # sensor de temperatura e umidade do ar 1
+
     
-def le_umidade_solo(sensor, va_min, va_max):
-    umsolo = (1-(sensor.read_u16() - va_min) / (va_max - va_min)) * 100
-    if umsolo < 0:
-        umsolo = 0
-    elif umsolo > 100:
-        umsolo = 100    
-    return umsolo
+def le_umidade_solo(sensor, va_min, va_max): #le umidade do solo
+    umsolo = lambda x : 100 if x > 100 else 0 if x < 0 else x
+    return umsolo((1 - (sensor.read_u16() - va_min)/(va_max - va_min)) * 100)
 
+def le_sensores(): #le todos os sensores
+    global va_min_1,va_min_2,va_min_3,va_max_1,va_max_2,va_max_3,s_umsolo_1,s_umsolo_2,s_umsolo_3
+    global umsolo_1, umsolo_2, umsolo_3, umar, tempar, s_umtempar
+    
+    umsolo_1 = le_umidade_solo(s_umsolo_1,va_min_1,va_max_1)
+    print("umidade do solo 1: {}%".format(umsolo_1))
+    utime.sleep(1)
+    
+    umsolo_2 = le_umidade_solo(s_umsolo_2,va_min_2,va_max_2)
+    print("umidade do solo 2: {}%".format(umsolo_2))
+    utime.sleep(1)
+    
+    umsolo_3 = le_umidade_solo(s_umsolo_3,va_min_3,va_max_3)
+    print("umidade do solo 3: {}%".format(umsolo_3))
+    utime.sleep(1)
+
+    tempar = s_umtempar.temperature
+    print("Temperatura do ar: {:.2f}C".format(tempar))
+    utime.sleep(1)
+    
+    umar = s_umtempar.relative_humidity
+    print("Umidade do ar: {:.2f}%".format(umar))
+    utime.sleep(1)
+    
+#inicio
 configura_modem()
-print('a')
-inic_sensores_umsolo()
-print('b')
-s_umtempar = DHT22(Pin(2,Pin.IN))
-
-# Enviando via HTTP
-#print('ENVIAR OS DADOS VIA HTTP GET...')
+inic_sensores()
 
 while True:
     conexao_provedor()
+    le_sensores()
     
-    umsolo_1 = le_umidade_solo(s_umsolo_1,va_min_1,va_max_1)
-    print("umidade do solo: {}%".format(umsolo_1))
-    utime.sleep(1)
-    umsolo_2 = le_umidade_solo(s_umsolo_2,va_min_2,va_max_2)
-    print("umidade do solo: {}%".format(umsolo_2))
-    utime.sleep(1)
-    umsolo_3 = le_umidade_solo(s_umsolo_3,va_min_3,va_max_3)
-    print("umidade do solo: {}%".format(umsolo_3))
-    utime.sleep(1)
-    
-    tempar = s_umtempar.read()[0]
-    
-    utime.sleep(1)
-    umar = s_umtempar.read()[1]
-     
-    print("temperatura do ar: {}C".format(tempar))
-    print("umidade do ar: {}%".format(umar))
-    url = 'https://api.thingspeak.com/update?api_key=GB30A3E1OFJ3SL8O&field1={}&field2={}&field3={}&field4={}&field5={}'.format(umsolo_1,umsolo_2,umsolo_3,umar,tempar)
+    url = 'https://api.thingspeak.com/update?api_key={}&field1={:.2f}&field2={:.2f}&field3={:.2f}&field4={:.2f}&field5={:.2f}'.format(Chave_API,umsolo_1,umsolo_2,umsolo_3,umar,tempar)
     response = modem.http_request(url, 'GET')
     print('- Codigo de status:', response.status_code)
     print('- Resposta de conteudo:', response.content)
     utime.sleep(30)
-
-# Disconnect Modem
-#modem.disconnect()
     
 
 

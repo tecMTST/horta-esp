@@ -6,7 +6,9 @@ from DHT22 import DHT22
 
 
 Chave_API = 'GB30A3E1OFJ3SL8O'
-UMIDADE_SOLO = 'field1'
+UMIDADE_SOLO_1 = 'field1'
+UMIDADE_SOLO_2 = 'field2'
+UMIDADE_SOLO_3 = 'field3'
 TEMPERATURA_AR = 'field5'
 UMIDADE_AR = 'field4'
 
@@ -67,12 +69,33 @@ def conexao_provedor(): #verifica se está conectado à rede do provedor, se nã
         print('Rede conectada: "{}"\n'.format(conectado))
         utime.sleep_ms(1000)
 
+def inic_sensores_umsolo():
+    global va_min_1,va_min_2,va_min_3,va_max_1,va_max_2,va_max_3,s_umsolo_1,s_umsolo_2,s_umsolo_3
+    va_min_1 = 7900 #umidade 100%
+    va_max_1 = 15000 #umidade 0%
+    s_umsolo_1 = ADC(0)
+    utime.sleep(1)
+    va_min_2 = 7900 #umidade 100%
+    va_max_2 = 15000 #umidade 0%
+    s_umsolo_2= ADC(1)
+    utime.sleep(1)
+    va_min_3 = 7900 #umidade 100%
+    va_max_3 = 15000 #umidade 0%
+    s_umsolo_3 = ADC(2)
+    utime.sleep(1)
+    
+def le_umidade_solo(sensor, va_min, va_max):
+    umsolo = (1-(sensor.read_u16() - va_min) / (va_max - va_min)) * 100
+    if umsolo < 0:
+        umsolo = 0
+    elif umsolo > 100:
+        umsolo = 100    
+    return umsolo
+
 configura_modem()
-
-va_min = 7900 #umidade 100%
-va_max = 15000 #umidade 0%
-s_umsolo = ADC(0)
-
+print('a')
+inic_sensores_umsolo()
+print('b')
 s_umtempar = DHT22(Pin(2,Pin.IN))
 
 # Enviando via HTTP
@@ -81,23 +104,24 @@ s_umtempar = DHT22(Pin(2,Pin.IN))
 while True:
     conexao_provedor()
     
-    umsolo = (1-(s_umsolo.read_u16() - va_min) / (va_max - va_min)) * 100
-    if umsolo < 0:
-        umsolo = 0
-    elif umsolo > 100:
-        umsolo = 100
-        
+    umsolo_1 = le_umidade_solo(s_umsolo_1,va_min_1,va_max_1)
+    print("umidade do solo: {}%".format(umsolo_1))
     utime.sleep(1)
+    umsolo_2 = le_umidade_solo(s_umsolo_2,va_min_2,va_max_2)
+    print("umidade do solo: {}%".format(umsolo_2))
+    utime.sleep(1)
+    umsolo_3 = le_umidade_solo(s_umsolo_3,va_min_3,va_max_3)
+    print("umidade do solo: {}%".format(umsolo_3))
+    utime.sleep(1)
+    
     tempar = s_umtempar.read()[0]
     
     utime.sleep(1)
     umar = s_umtempar.read()[1]
-    
-    print("umidade do solo: {}%".format(umsolo)) 
+     
     print("temperatura do ar: {}C".format(tempar))
     print("umidade do ar: {}%".format(umar))
-    
-    url = 'https://api.thingspeak.com/update?api_key=GB30A3E1OFJ3SL8O&field5={}&field4={}&field1={}'.format(tempar,umar,umsolo)
+    url = 'https://api.thingspeak.com/update?api_key=GB30A3E1OFJ3SL8O&field1={}&field2={}&field3={}&field4={}&field5={}'.format(umsolo_1,umsolo_2,umsolo_3,umar,tempar)
     response = modem.http_request(url, 'GET')
     print('- Codigo de status:', response.status_code)
     print('- Resposta de conteudo:', response.content)

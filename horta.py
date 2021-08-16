@@ -119,10 +119,9 @@ configura_modem()
 inic_sensores()
 
 while True:
-    conexao_provedor()
     le_sensores()
-    
-    url = 'https://api.thingspeak.com/update?api_key={}&field1={:.2f}&field2={:.2f}&field3={:.2f}&field4={:.2f}&field5={:.2f}'.format(Chave_API,umsolo_1,umsolo_2,umsolo_3,umar,tempar)
+    conexao_provedor()
+    url = 'https://api.thingspeak.com/update?api_key=GB30A3E1OFJ3SL8O&field1={:.2f}&field2={:.2f}&field3={:.2f}&field4={:.2f}&field5={:.2f}'.format(umsolo_1,umsolo_2,umsolo_3,umar,tempar)
     response = modem.http_request(url, 'GET')
     print('- Codigo de status:', response.status_code)
     print('- Resposta de conteudo:', response.content)

@@ -1,4 +1,4 @@
-from machine import UART, Pin, ADC, I2C
+from machine import UART, Pin, ADC, I2C, Timer, WDT
 import utime
 from SIM800L import Modem
 import json
@@ -10,6 +10,9 @@ UMIDADE_SOLO_2 = 'field2'
 UMIDADE_SOLO_3 = 'field3'
 TEMPERATURA_AR = 'field5'
 UMIDADE_AR = 'field4'
+REINICIALIZACAO = 'field1'
+BATERIA = 'field2'
+IRRIGACAO = 'field3'
 
 provedor = "Claro" #'Claro', 'Vivo', 'Tim' ou 'Oi'
 prov = {'Claro': {'shortname': 'Claro', 'longname': 'Claro',        'id': '72405', 'APN': 'claro.com.br',    'USER': 'claro', 'SENHA': 'claro'},
@@ -141,7 +144,17 @@ def envia_dados(url, tempo_ms):
     loop(tempo_ms)
         
 #inicio
+def feed_wdt(self):
+    global wdt
+    log("Alimenta Watchdog Time")
+    wdt.feed()
+
 log("Inicio...")
+inicializacao = 1
+log("Definindo Timer (7s) para WDT de (8s)...")
+tim = Timer(-1)
+tim.init(period=7000, mode=Timer.PERIODIC, callback=feed_wdt)
+wdt = WDT(id=0,timeout=8000)
 log("Aguardando boot do modem (15s)...")
 loop(15000)
 configura_modem()
@@ -151,7 +164,11 @@ while True:
     le_sensores()
     url = 'https://api.thingspeak.com/update?api_key=GB30A3E1OFJ3SL8O&field1={:.2f}&field2={:.2f}&field3={:.2f}&field4={:.2f}&field5={:.2f}'.format(umsolo_1,umsolo_2,umsolo_3,umar,tempar)
     envia_dados(url, 30000)
+    url = 'https://api.thingspeak.com/update?api_key=U6N0IP91Z7VK92UV&field1={:.2f}&field2={:.2f}&field3={:.2f}'.format(inicializacao,100,0)
+    inicializacao = 0
+    envia_dados(url, 30000)
 
     
 
 
+ 

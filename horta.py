@@ -3,6 +3,7 @@ import utime
 from SIM800L import Modem
 import json
 import ahtx0
+import tsl2561
 
 Chave_API = 'GB30A3E1OFJ3SL8O'
 UMIDADE_SOLO_1 = 'field1'
@@ -21,7 +22,10 @@ prov = {'Claro': {'shortname': 'Claro', 'longname': 'Claro',        'id': '72405
         'Oi':    {'shortname': 'Oi',    'longname': 'TNL PCS S.A.', 'id': '72431', 'APN': 'gprs.oi.com.br',  'USER': 'oi',    'SENHA': 'oi'   }}
 
 def log(msg):
-    print("(log) {}".format(msg))
+    global debug_uart
+    mensagem = "(log) {}".format(msg)
+    print(mensagem)
+    debug_uart.write(mensagem+'\n\r')
 
 def loop(tempo_ms): #em milisegundos
 #     log(" - Delay de {:.2f} segundos".format(float(tempo_ms/1000)))
@@ -33,7 +37,8 @@ def configura_modem():
     log('Começando...')
     # Cria o objeto modem (nosso SIM800L) e configura a interface serial
     modem = Modem(uart=0, MODEM_TX_PIN=1, MODEM_RX_PIN=0)
-    modem.initialize()    # Inicia o SIM800L
+    while modem.initialize() != 1:   # Inicia o SIM800L
+        log('Reconfigurando...')
     escaneia_redes()      # Escaneia as redes de celular
     conexao_provedor()    # Conecta à rede do chip (SIM Card)
     conexao_gprs()        # Conecta à internet
@@ -88,7 +93,7 @@ def conexao_provedor(): #verifica se está conectado à rede do provedor, se nã
 
 def inic_sensores(): #inicializa todos os sensores da horta
     global va_min_1,va_min_2,va_min_3,va_max_1,va_max_2,va_max_3,s_umsolo_1,s_umsolo_2,s_umsolo_3
-    global s_umtempar
+    global s_umtempar, s_lum
     log("Inicializando sensores...")
     va_min_1 = 37433 #umidade 100%
     va_max_1 = 65535 #umidade 0%
@@ -102,7 +107,10 @@ def inic_sensores(): #inicializa todos os sensores da horta
     va_max_3 = 65535 #umidade 0%
     s_umsolo_3 = ADC(2)
     loop(500)
-    s_umtempar = ahtx0.AHT10(I2C(0,scl=Pin(5), sda=Pin(4))) # sensor de temperatura e umidade do ar 1
+    i2c_1 = I2C(1,scl=Pin(3), sda=Pin(2), freq=10000)
+    s_umtempar = ahtx0.AHT10(i2c_1) # sensor de temperatura e umidade do ar 1
+    s_lum = tsl2561.TSL2561(i2c_1)
+    s_lum.active(True)
 
 def le_umidade_solo(sensor, va_min, va_max): #le umidade do solo
     umsolo = lambda x : 100 if x > 100 else 0 if x < 0 else x
@@ -110,20 +118,24 @@ def le_umidade_solo(sensor, va_min, va_max): #le umidade do solo
 
 def le_sensores(): #le todos os sensores
     global va_min_1,va_min_2,va_min_3,va_max_1,va_max_2,va_max_3,s_umsolo_1,s_umsolo_2,s_umsolo_3
-    global umsolo_1, umsolo_2, umsolo_3, umar, tempar, s_umtempar
+    global umsolo_1, umsolo_2, umsolo_3, umar, tempar, s_umtempar, s_lum, lum
     log("Lendo sensores...")
     
     umsolo_1 = le_umidade_solo(s_umsolo_1,va_min_1,va_max_1)
     log("Umidade do solo 1: {}%".format(umsolo_1))
-    loop(150)
+    loop(100)
     
     umsolo_2 = le_umidade_solo(s_umsolo_2,va_min_2,va_max_2)
     log("Umidade do solo 2: {}%".format(umsolo_2))
-    loop(150)
+    loop(100)
     
     umsolo_3 = le_umidade_solo(s_umsolo_3,va_min_3,va_max_3)
     log("Umidade do solo 3: {}%".format(umsolo_3))
-    loop(150)
+    loop(100)
+    
+    lum = s_lum.read()
+    log("Luminosidade: {:.2f} Lux".format(lum))
+    loop(100)
 
     tempar = s_umtempar.temperature
     log("Temperatura do ar: {:.2f}C".format(tempar))
@@ -149,6 +161,7 @@ def feed_wdt(self):
     log("Alimenta Watchdog Time")
     wdt.feed()
 
+debug_uart = UART(1,baudrate=115200, rx=Pin(5), tx=Pin(4))
 log("Inicio...")
 inicializacao = 1
 log("Definindo Timer (7s) para WDT de (8s)...")
@@ -162,7 +175,7 @@ inic_sensores()
 
 while True:
     le_sensores()
-    url = 'https://api.thingspeak.com/update?api_key=GB30A3E1OFJ3SL8O&field1={:.2f}&field2={:.2f}&field3={:.2f}&field4={:.2f}&field5={:.2f}'.format(umsolo_1,umsolo_2,umsolo_3,umar,tempar)
+    url = 'https://api.thingspeak.com/update?api_key=GB30A3E1OFJ3SL8O&field1={:.2f}&field2={:.2f}&field3={:.2f}&field4={:.2f}&field5={:.2f}&field6={:.2f}'.format(umsolo_1,umsolo_2,umsolo_3,umar,tempar,lum)
     envia_dados(url, 30000)
     url = 'https://api.thingspeak.com/update?api_key=U6N0IP91Z7VK92UV&field1={:.2f}&field2={:.2f}&field3={:.2f}'.format(inicializacao,100,0)
     inicializacao = 0

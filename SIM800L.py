@@ -1,7 +1,7 @@
 # Imports
 import time
 import json
-
+from machine import UART, Pin
 # Setup logging.
 try:
     import logging
@@ -11,16 +11,23 @@ except:
         import logger
     except:
         class Logger(object):
-            level = 'INFO'
+            level = 'DEBUG'
             @classmethod
             def debug(cls, text):
-                if cls.level == 'DEBUG': print('DEBUG:', text)
+                if cls.level == 'DEBUG':
+                    print('DEBUG:', text)
+                    uart = UART(1,baudrate=115200, rx=Pin(5), tx=Pin(4))
+                    uart.write("DEBUG: {}\r\n".format(text))
             @classmethod
             def info(cls, text):
                 print('INFO:', text)
+                uart = UART(1,baudrate=115200, rx=Pin(5), tx=Pin(4))
+                uart.write('INFO:'+text+'\n\r')
             @classmethod
             def warning(cls, text):
                 print('WARN:', text)
+                uart = UART(1,baudrate=115200, rx=Pin(5), tx=Pin(4))
+                uart.write('WARN:'+text+'\n\r')
         logger = Logger()
 
 
@@ -52,7 +59,14 @@ class Modem(object):
         self.initialized = False
         self.modem_info = None
 
-
+    def read_buffer(self, timeout):
+        buffer = bytes()
+        now = time.ticks_ms()
+        while ((time.ticks_ms() - now) < timeout):
+            if self.uart.any():
+                buffer = self.uart.readline()
+                if len(buffer) > 1: break
+        return buffer
     #----------------------
     #  Modem initializer
     #----------------------
@@ -86,13 +100,19 @@ class Modem(object):
         while True:
             try:
                 self.modem_info = self.execute_at_command('modeminfo')
+                logger.debug('executou comando{}'.format(self.modem_info))
+
             except:
                 retries+=1
+                logger.debug('retries={}'.format(retries))
+
                 if retries < 3:
                     logger.debug('Error in getting modem info, retrying.. (#{})'.format(retries))
                     time.sleep(3)
                 else:
-                    raise
+                    logger.debug('elseeeeeeeee')
+                    return None
+                    #raise
             else:
                 break
 
@@ -103,6 +123,8 @@ class Modem(object):
         
         # Check if SSL is supported
         self.ssl_available = self.execute_at_command('checkssl') == '+CIPSSL: (0-1)'
+        
+        return 1
 
 
     #----------------------
@@ -169,7 +191,9 @@ class Modem(object):
 
         # Sanity checks
         if command not in commands:
-            raise Exception('Unknown command "{}"'.format(command))
+            #raise Exception('Unknown command "{}"'.format(command))
+            logger.warning('Unknown command "{}"'.format(command))
+            return None
 
         # Support vars
         command_string  = commands[command]['string']
@@ -181,6 +205,7 @@ class Modem(object):
         command_string_for_at = "{}\r\n".format(command_string)
         logger.debug('Writing AT command "{}"'.format(command_string_for_at.encode('utf-8')))
         self.uart.write(command_string_for_at)
+        logger.debug('mandou?')
 
         # Support vars
         pre_end = True
@@ -188,15 +213,25 @@ class Modem(object):
         empty_reads = 0
 
         while True:
+            try:
+                line = self.uart.readline()
+                logger.debug('self.uart.readline()={}'.format(line))
+                #blocante. Fazer uma função de saida com timeout
+                #line = self.read_buffer(1000)
+            except:
+                logger.warning('Deu ruim')
+                #return None
 
-            line = self.uart.readline()
+                
+            #logger.debug('self.uart.readline()={}'.format(line))
             if not line:
                 time.sleep(1)
                 empty_reads += 1
+                logger.debug('empty_reads()={}, timeout={})'.format(empty_reads, timeout))
                 if empty_reads > timeout:
-                    raise Exception('Timeout for command "{}" (timeout={})'.format(command, timeout))
-                    #logger.warning('Timeout for command "{}" (timeout={})'.format(command, timeout))
-                    #break
+                    #raise Exception('Timeout for command "{}" (timeout={})'.format(command, timeout))
+                    logger.warning('Timeout for command "{}" (timeout={})'.format(command, timeout))
+                    return None
             else:
                 logger.debug('Read "{}"'.format(line))
 
@@ -205,7 +240,9 @@ class Modem(object):
 
                 # Do we have an error?
                 if line_str == 'ERROR\r\n':
-                    raise GenericATError('Got generic AT error')
+                    #GenericATError('Got generic AT error')
+                    logger.debug('Got generic AT error')
+                    break
 
                 # If we had a pre-end, do we have the expected end?
                 if line_str == '{}\r\n'.format(excpected_end):
@@ -302,22 +339,28 @@ class Modem(object):
         output = output.split('+')[-1] # Remove potential leftovers in the buffer before the "+SAPBR:" response
         pieces = output.split(',')
         if len(pieces) != 3:
-            raise Exception('Cannot parse "{}" to get an IP address'.format(output))
+            #raise Exception('Cannot parse "{}" to get an IP address'.format(output))
+            logger.warning('Cannot parse "{}" to get an IP address'.format(output))
+            return None
         ip_addr = pieces[2].replace('"','')
         if len(ip_addr.split('.')) != 4:
-            raise Exception('Cannot parse "{}" to get an IP address'.format(output))
+            #raise Exception('Cannot parse "{}" to get an IP address'.format(output))
+            logger.warning('Cannot parse "{}" to get an IP address'.format(output))
+            return None
         if ip_addr == '0.0.0.0':
             return None
         return ip_addr
 
     def connect(self, apn, user='', pwd=''):
         if not self.initialized:
-            raise Exception('Modem is not initialized, cannot connect')
-
+            #raise Exception('Modem is not initialized, cannot connect')
+            logger.warning('Modem is not initialized, cannot connect')
+            return None
+        
         # Are we already connected?
         if self.get_ip_addr():
             logger.debug('Modem is already connected, not reconnecting.')
-            return
+            return None
 
         # Closing bearer if left opened from a previous connect gone wrong:
         logger.debug('Trying to close the bearer in case it was left open somehow..')
@@ -349,7 +392,9 @@ class Modem(object):
             if not ip_addr:
                 retries += 1
                 if retries > max_retries:
-                    raise Exception('Cannot connect modem as could not get a valid IP address')
+                    #raise Exception('Cannot connect modem as could not get a valid IP address')
+                    logger.warning('Cannot connect modem as could not get a valid IP address')
+                    return None
                 logger.debug('No valid IP address yet, retrying... (#')
                 time.sleep(1)
             else:
@@ -366,8 +411,9 @@ class Modem(object):
         # Check that we are actually disconnected
         ip_addr = self.get_ip_addr()
         if ip_addr:
-            raise Exception('Error, we should be disconnected but we still have an IP address ({})'.format(ip_addr))
-
+            #raise Exception('Error, we should be disconnected but we still have an IP address ({})'.format(ip_addr))
+            logger.warning('Error, we should be disconnected but we still have an IP address ({})'.format(ip_addr))
+            return None
 
     def http_request(self, url, mode='GET', data=None, content_type='application/json'):
 
@@ -376,7 +422,9 @@ class Modem(object):
 
         # Are we  connected?
         if not self.get_ip_addr():
-            raise Exception('Error, modem is not connected')
+            #raise Exception('Error, modem is not connected')
+            logger.warning('Error, modem is not connected')
+            return None
 
         # Close the http context if left open somehow
         logger.debug('Close the http context if left open somehow...')
@@ -401,7 +449,9 @@ class Modem(object):
                 self.execute_at_command('disablessl')
         else:
             if url.startswith('https://'):
-                raise NotImplementedError("SSL is only supported by firmware revisions >= R14.00")
+                #raise NotImplementedError("SSL is only supported by firmware revisions >= R14.00")
+                logger.warning("SSL is only supported by firmware revisions >= R14.00")
+                return None
 
         # Second, init and execute the request
         logger.debug('Http request step #2.1 (initurl)')
@@ -432,7 +482,9 @@ class Modem(object):
 
 
         else:
-            raise Exception('Unknown mode "{}'.format(mode))
+            #raise Exception('Unknown mode "{}'.format(mode))
+            logger.warning('Unknown mode "{}'.format(mode))
+            return None
 
         # Third, get data
         logger.debug('Http request step #4 (getdata)')
@@ -452,7 +504,9 @@ class Modem(object):
 
         # Are we  connected?
         if not self.get_ip_addr():
-            raise Exception('Error, modem is not connected')
+            #raise Exception('Error, modem is not connected')
+            logger.warning('Error, modem is not connected')
+            return None
 
         # Close the tcp context if left open somehow
         logger.debug('Close the tcp context if left open somehow...')
@@ -483,8 +537,10 @@ class Modem(object):
 
 
         else:
-            raise Exception('Unknown mode "{}'.format(mode))
-
+            #raise Exception('Unknown mode "{}'.format(mode))
+            logger.warning('Unknown mode "{}'.format(mode))
+            return None
+        
         # Then, close the tcp context
         logger.debug('tcp request step #4 (fechatcp)')
         self.execute_at_command('fechatcp')

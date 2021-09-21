@@ -155,15 +155,37 @@ def envia_dados(url, tempo_ms):
     log("Aguardando {:.2f} segundos para o proximo ciclo...\n".format(tempo_ms/1000))
     loop(tempo_ms)
         
-#inicio
 def feed_wdt(self):
-    global wdt
-    log("Alimenta Watchdog Time")
-    wdt.feed()
+    global wdt, count
+    #resetar o RP2 a cada 6h - 21600s
+    count+=1
+    #21600/7 = 3085 -> 6 horas
+    if count < 3085:
+        log("Alimenta Watchdog Time")
+        wdt.feed()
+    else:
+        log("RESETAR")
+        utime.sleep(5)
 
+# def configura_RTC():
+#     global resetar
+#     #pega data e hora da rede
+#     dataehora = modem.execute_at_command('clock')
+#     print('\n\n\n\n{}\n\n\n\n\n'.format(dataehora))
+#     ano = int("20"+dataehora[8]+dataehora[9])
+#     mes = int(dataehora[11]+dataehora[12])
+#     dia = int(dataehora[14]+dataehora[15])
+#     hora = int(dataehora[17]+dataehora[18])
+#     mint = int(dataehora[20]+dataehora[21])
+#     seg = int(dataehora[23]+dataehora[24])
+#     print("\n\n{}\n{}\n{}\n{}\n{}\n{}\n\n".format(dia, mes, ano, hora, mint, seg))
+#     #esta versão de micropython nao tem RTC implementado...
+
+#inicio
 debug_uart = UART(1,baudrate=115200, rx=Pin(5), tx=Pin(4))
 log("Inicio...")
 inicializacao = 1
+count = 0
 log("Definindo Timer (7s) para WDT de (8s)...")
 tim = Timer(-1)
 tim.init(period=7000, mode=Timer.PERIODIC, callback=feed_wdt)
@@ -171,6 +193,7 @@ wdt = WDT(id=0,timeout=8000)
 log("Aguardando boot do modem (15s)...")
 loop(15000)
 configura_modem()
+# configura_RTC()
 inic_sensores()
 
 while True:

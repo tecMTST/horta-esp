@@ -162,6 +162,7 @@ class Modem(object):
                     'closehttp':     {'string':'AT+HTTPTERM', 'timeout':3, 'end': 'OK'},
                     'closebear':     {'string':'AT+SAPBR=0,1', 'timeout':3, 'end': 'OK'},
                     #implementados por mimdumpdata
+                    'clock':         {'string':'AT+CCLK?', 'timeout':3, 'end': 'OK'},
                     'checa':         {'string':'AT', 'timeout':3, 'end': 'OK'},
                     'sinal':         {'string':'AT+CSQ', 'timeout':3, 'end': 'OK'},
                     'escanea':       {'string':'AT+COPS=?', 'timeout':60, 'end': 'OK'},
@@ -215,7 +216,7 @@ class Modem(object):
         while True:
             try:
                 line = self.uart.readline()
-                logger.debug('self.uart.readline()={}'.format(line))
+                #logger.debug('self.uart.readline()={}'.format(line))
                 #blocante. Fazer uma função de saida com timeout
                 #line = self.read_buffer(1000)
             except:
@@ -223,7 +224,7 @@ class Modem(object):
                 #return None
 
                 
-            #logger.debug('self.uart.readline()={}'.format(line))
+            logger.debug('self.uart.readline()={}'.format(line))
             if not line:
                 time.sleep(1)
                 empty_reads += 1
@@ -462,6 +463,7 @@ class Modem(object):
             logger.debug('Http request step #2.2 (doget)')
             output = self.execute_at_command('doget')
             response_status_code = output.split(',')[1]
+            
             logger.debug('Response status code: "{}"'.format(response_status_code))
 
         elif mode == 'POST':

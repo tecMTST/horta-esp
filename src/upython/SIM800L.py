@@ -1,3 +1,7 @@
+"""
+SIM800L é o módulo eletrônico de comunicação por rede de celular.
+"""
+
 # Imports
 import time
 import json

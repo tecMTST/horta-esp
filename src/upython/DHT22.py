@@ -1,3 +1,9 @@
+"""
+DHT22 é um sensor de umidade e temperatura.
+Aparentemente esse arquivo não é utilizado pelo código embarcado.
+O sensor de umidade e temperatura utilizado é o AHT10 ou AHT20.
+"""
+
 '''
  *
  *

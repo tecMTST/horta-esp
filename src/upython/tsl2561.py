@@ -1,3 +1,7 @@
+"""
+O TSL2561 é um sensor de luminosidade. 
+"""
+
 import time
 import ustruct
 

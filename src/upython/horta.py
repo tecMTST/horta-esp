@@ -1,11 +1,12 @@
 from machine import UART, Pin, ADC, I2C, Timer, WDT
 import utime
-from SIM800L import Modem
-import json
-import ahtx0
-import tsl2561
+from SIM800L import Modem # Comunicação por rede de celular.
+import ahtx0 # Sensor de umidade e temperatura.
+import tsl2561 # Sensor de luminosidade.
 
-Chave_API = 'GB30A3E1OFJ3SL8O'
+
+# Xavier: Variáveis não utilizadas (estão hard-coded no URL).
+Chave_API = 'GB30A3E1OFJ3SL8O' 
 UMIDADE_SOLO_1 = 'field1'
 UMIDADE_SOLO_2 = 'field2'
 UMIDADE_SOLO_3 = 'field3'
@@ -15,11 +16,13 @@ REINICIALIZACAO = 'field1'
 BATERIA = 'field2'
 IRRIGACAO = 'field3'
 
+
 provedor = "Claro" #'Claro', 'Vivo', 'Tim' ou 'Oi'
 prov = {'Claro': {'shortname': 'Claro', 'longname': 'Claro',        'id': '72405', 'APN': 'claro.com.br',    'USER': 'claro', 'SENHA': 'claro'},
         'Vivo':  {'shortname': '72410', 'longname': '72410',        'id': '72410', 'APN': 'zap.vivo.com.br', 'USER': 'vivo',  'SENHA': 'vivo' },
         'Tim':   {'shortname': 'TIM',   'longname': 'TIM BRASIL',   'id': '72403', 'APN': 'timbrasil.br',    'USER': 'tim',   'SENHA': 'tim'  },
         'Oi':    {'shortname': 'Oi',    'longname': 'TNL PCS S.A.', 'id': '72431', 'APN': 'gprs.oi.com.br',  'USER': 'oi',    'SENHA': 'oi'   }}
+
 
 def log(msg):
     global debug_uart
@@ -27,10 +30,12 @@ def log(msg):
     print(mensagem)
     debug_uart.write(mensagem+'\n\r')
 
+
 def loop(tempo_ms): #em milisegundos
 #     log(" - Delay de {:.2f} segundos".format(float(tempo_ms/1000)))
     for i in range(0,tempo_ms):
         utime.sleep_ms(1)
+    
     
 def configura_modem():
     global modem
@@ -43,12 +48,14 @@ def configura_modem():
     conexao_provedor()    # Conecta à rede do chip (SIM Card)
     conexao_gprs()        # Conecta à internet
 
+
 def conexao_gprs():
     global modem, provedor
     log('Conectando à internet da "{}"...'.format(provedor))
     modem.connect(apn=prov[provedor]['APN'],user=prov[provedor]['USER'],pwd=prov[provedor]['SENHA'])    # Conecta ao GPRS
     end_ip_local = modem.get_ip_addr()
     log('Conectado! Endereço IP: "{}"'.format(end_ip_local))
+
 
 def escaneia_redes(): #escaeia e verifica se há rede do provedor
     global modem, provedor
@@ -65,6 +72,7 @@ def escaneia_redes(): #escaeia e verifica se há rede do provedor
             log('Verifique a posição da antena')
             log('Tentando novamente...')
             loop(5000)
+
 
 def conexao_provedor(): #verifica se está conectado à rede do provedor, se não estiver força para conectar
     global modem, provedor
@@ -91,6 +99,7 @@ def conexao_provedor(): #verifica se está conectado à rede do provedor, se nã
         log('Provedor conectado: "{}"'.format(conectado))
         loop(1000)
 
+
 def inic_sensores(): #inicializa todos os sensores da horta
     global va_min_1,va_min_2,va_min_3,va_max_1,va_max_2,va_max_3,s_umsolo_1,s_umsolo_2,s_umsolo_3
     global s_umtempar, s_lum
@@ -112,9 +121,11 @@ def inic_sensores(): #inicializa todos os sensores da horta
     s_lum = tsl2561.TSL2561(i2c_1)
     s_lum.active(True)
 
+
 def le_umidade_solo(sensor, va_min, va_max): #le umidade do solo
     umsolo = lambda x : 100 if x > 100 else 0 if x < 0 else x
     return umsolo((1 - (sensor.read_u16() - va_min)/(va_max - va_min)) * 100)
+
 
 def le_sensores(): #le todos os sensores
     global va_min_1,va_min_2,va_min_3,va_max_1,va_max_2,va_max_3,s_umsolo_1,s_umsolo_2,s_umsolo_3
@@ -145,6 +156,7 @@ def le_sensores(): #le todos os sensores
     log("Umidade do ar: {:.2f}%".format(umar))
     loop(1000)
 
+
 def envia_dados(url, tempo_ms):
     conexao_provedor()
     log("Enviando dados por requisição GET...")
@@ -154,6 +166,7 @@ def envia_dados(url, tempo_ms):
     log(' - Resposta: Numero de Envios = "{}"'.format(response.content))
     log("Aguardando {:.2f} segundos para o proximo ciclo...\n".format(tempo_ms/1000))
     loop(tempo_ms)
+
         
 def feed_wdt(self):
     global wdt, count
@@ -181,6 +194,7 @@ def feed_wdt(self):
 #     print("\n\n{}\n{}\n{}\n{}\n{}\n{}\n\n".format(dia, mes, ano, hora, mint, seg))
 #     #esta versão de micropython nao tem RTC implementado...
 
+
 #inicio
 debug_uart = UART(1,baudrate=115200, rx=Pin(5), tx=Pin(4))
 log("Inicio...")
@@ -195,6 +209,7 @@ loop(15000)
 configura_modem()
 # configura_RTC()
 inic_sensores()
+
 
 while True:
     le_sensores()
